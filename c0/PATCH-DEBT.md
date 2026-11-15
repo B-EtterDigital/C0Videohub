@@ -11,13 +11,13 @@ Every line we change inside an upstream file. Only allowed to go down. Our own c
 | `ui/style.css` | 13 | host theme: chrome colours outside `:root` use the variables; `:root` gets `--teal` (no existing variable for the snap guide and clip selection), dark value from upstream | not yet |
 | `ui/review.css` | 41 | host theme for the review screen and timeline: chrome colours become variables or `color-mix` overlays; video stage, thumbnail backings, on-picture captions and shadows stay as they are (content) | not yet |
 | `ui/thumbstudio.css` | 13 | host theme for the thumbnail studio: panels, canvas workspace, error card, viewer; feed mock-ups, thumbnail backings and the picture pins stay (content) | not yet |
-| `ui/review.js` | 3 | import `c0-theme.js`; the note labels drawn on the frame redraw on `c0:theme` | not yet |
+| `ui/review.js` | 4 | import `c0-theme.js`; the note labels drawn on the frame redraw on `c0:theme`; the page unsubscribes when it closes | not yet |
 | `ui/review/timeline.js` | 58 | canvas chrome (ruler, lanes, playhead, guides, overlay, note markers) reads `vhColor`; redraws and clears the waveform cache on `c0:theme`; unsubscribes in `destroy()`. Track, scene and clip identity colours stay (content) | not yet |
 | `ui/review/edit2d.js` | 8 | selection outlines and labels read `vhColor`; redraw on `c0:theme` while open; unsubscribes in `destroy()`. Annotation defaults and colour pickers stay (content) | not yet |
 | `ui/review/sceneedit.js` | 5 | scene-editor outlines read `vhColor`; redraw on `c0:theme` while open; unsubscribes in `destroy()`. Portal presets stay (content) | not yet |
 | `ui/review/autoscan.js` | 13 | scan flag colours are theme names (canvas and DOM both resolve them); canvas chrome reads `vhColor`; repaints on `c0:theme`; unsubscribes in `destroy()` | not yet |
 
-Total: 174 lines in 11 files (2026-11-15). Hosted mode also refuses to start without its socket (in `server/c0-hosted.js`, no upstream line).
+Total: 175 lines in 11 files (2026-11-15). Hosted mode also refuses to start without its socket (in `server/c0-hosted.js`, no upstream line).
 The host theme bridge is ours and lives in new files: `ui/c0-theme.js` and `ui/c0-theme.test.js` (no upstream line).
 The HyperFrames adapter is ours: `server/c0-hyperframes.js`, `ui/c0-hyperframes.js` and their tests (no upstream line).
 

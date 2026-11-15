@@ -589,7 +589,7 @@ export async function reviewPage(page, id, relArg = '') {
   let labelHits = [];   // note labels on the frame, in 0..1 coords, so a click can open the note
   const nextId = () => notes.reduce((m, n) => Math.max(m, n.id), 0) + 1;
   const numbered = (shapes, num) => shapes.map(s => s.type === 'pin' ? { ...s, num } : s);
-  onThemeChange(() => redraw());
+  const offTheme = onThemeChange(() => redraw());
   function redraw() {
     const W = ov.width, H = ov.height; octx.clearRect(0, 0, W, H);
     const t = noteTime(); labelHits = [];
@@ -1088,7 +1088,7 @@ export async function reviewPage(page, id, relArg = '') {
     shuttle.stop({ pause: false }); transport.destroy();
     ro2.disconnect(); cancelAnimationFrame(clampRaf); topFit.destroy(); dockSplit.destroy(); sideSplit.destroy(); styleMenu?.close(); side.destroy();
     appEl?.classList.remove('app-editor', 'side-peek'); mainEl?.classList.remove('main-editor');
-    offTips(); ro.disconnect(); timeline.destroy(); clearInterval(diffTimer); offProxy(); offLive(); offNote(); renderBtn?.destroy(); sceneEd?.destroy(); scanner?.destroy(); mixer?.destroy(); mixer = null; soundEd?.destroy(); soundEd = null; edit2d?.destroy(); liveCover?.destroy(); liveSrc?.destroy();
+    offTips(); offTheme(); ro.disconnect(); timeline.destroy(); clearInterval(diffTimer); offProxy(); offLive(); offNote(); renderBtn?.destroy(); sceneEd?.destroy(); scanner?.destroy(); mixer?.destroy(); mixer = null; soundEd?.destroy(); soundEd = null; edit2d?.destroy(); liveCover?.destroy(); liveSrc?.destroy();
     videoA.pause(); videoA.removeAttribute('src'); videoA.load(); videoB.pause(); videoB.removeAttribute('src'); videoB.load();
     page.classList.remove('page-wide', 'page-editor');
   };
