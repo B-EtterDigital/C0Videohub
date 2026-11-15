@@ -81,7 +81,7 @@ export async function create(body) {
   if (!['partial', 'full', 'preview', 'command'].includes(mode)) throw Object.assign(new Error('mode: partial | full | preview | command'), { code: 400 });
   const workers = +(body.workers ?? rc.workers ?? 1);
   if (!Number.isInteger(workers) || workers < 1 || workers > (p.studio ? 4 : 8)) throw Object.assign(new Error('Invalid number of render workers.'), { code: 400 });
-  const job = { id: 'j' + Date.now().toString(36) + '-' + randomUUID().slice(0, 8), project: p.id, projectName: p.title || p.name, path: p.path, mode, state: 'queued', createdAt: now(), session: body.session || null, notes: body.notes || [], env: { ...rc.env, ...(body.env || {}) }, workers, progress: 0 };
+  const job = { id: 'j' + Date.now().toString(36) + '-' + randomUUID().slice(0, 8), project: p.id, projectName: p.title || p.name, path: p.path, mode, state: 'queued', createdAt: now(), session: body.session || null, notes: body.notes || [], env: (globalThis.c0Hosted?.env ?? (e => e))({ ...rc.env, ...(body.env || {}) }), workers, progress: 0 };
   if (mode === 'partial') {
     if (p.studio && !rc.chunkSec) throw Object.assign(new Error(`This 3D scene has no chunked render yet (out\\${p.name}\\render\\manifest.json). Render it in full once first: hub_render({mode:"full"}) or node make.mjs ${p.name}.`), { code: 400 });
     if (!p.studio && (p.family !== 'A' || !rc.chunkSec)) throw Object.assign(new Error(`Partial renders need a chunked render script (family A, see docs/PROJECT-CONTRACT.md) or a 3D studio scene; this project is "${p.family}". Use mode:"full", or mode:"command" with your own command.`), { code: 400 });
@@ -95,7 +95,7 @@ export async function create(body) {
     if (!body.cmd) throw Object.assign(new Error('mode "command" needs cmd'), { code: 400 });
     job.cmd = body.cmd; job.output = body.output || null;
     // a custom command is any command line: it waits in the queue until the user approves it on the Renders page
-    if (config().render?.confirmCommands !== false) { job.needsApproval = true; job.waiting = APPROVAL; }
+    if (globalThis.c0Hosted || config().render?.confirmCommands !== false) { job.needsApproval = true; job.waiting = APPROVAL; }
   } else if (mode === 'preview') {
     if (p.studio) throw Object.assign(new Error('3D scenes have no preview render; the live preview (hub_live) shows them without rendering.'), { code: 400 });
     job.env.PREVIEW = '1';
@@ -103,7 +103,7 @@ export async function create(body) {
   job.dur = +rc.env.DUR || null;
   if (body.copyTo && mode !== 'command') {
     if (!path.isAbsolute(String(body.copyTo))) throw Object.assign(new Error('The copy folder must be a full path (e.g. D:\\Videos)'), { code: 400 });
-    job.copyTo = path.resolve(String(body.copyTo));
+    job.copyTo = (globalThis.c0Hosted?.copyTo ?? (d => d))(path.resolve(String(body.copyTo)), config().outputsDir);
   }
   // big programs holding RAM (an Android emulator can take 8 GB of 16): hub_render tells Claude, Claude tells the user
   job.ramNote = ramNote(await ramHogsNow().catch(() => []), guardState().ramAvailMB);
@@ -247,6 +247,7 @@ async function runJob(job) {
     // vN does not advance after a failed or cancelled render: the retry takes chunks_vN_2, _3 ... (names the janitor and scan know)
     if (fs.existsSync(chunkDir(p))) fs.renameSync(chunkDir(p), freeName(path.join(rdir(p), 'render', `chunks_v${vN - 1}`)));
   }
+  if (!p.studio) globalThis.c0Hosted?.script(p.path, rc.script);
   // a studio scene: the studio's make.mjs makes only the chunks (all of them, or --only the touched ones)
   setPhase(job, 'render');
   const { code } = p.studio

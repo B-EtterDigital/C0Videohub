@@ -30,6 +30,7 @@ import { openFile } from './open-file.js';
 import { transcript } from './transcript.js';
 import { ramHogs } from './ramhogs.js';
 import * as thumbstudio from './thumbstudio/store.js';
+import { SOCKET, tokenRefused, hostedConfigPatch } from './c0-hosted.js';   // C0VIBE hosted mode (fork)
 
 const UI = path.join(HUB_DIR, 'ui');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.json': 'application/json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.aac': 'audio/aac', '.flac': 'audio/flac' };
@@ -306,7 +307,7 @@ onClean(st => { broadcast('clean', st); if (st.state === 'done') { ciktilar.afte
 onScan(ev => { if (ev.phase === 'done') try { ciktilar.sync(); } catch (e) { console.error('ciktilar sync:', e.message); } });
 route('GET', '/api/config', () => ({ ...config(), workspace: baseDir(), capabilities: capabilities(), discovered: discoverRoots(), tools: TOOLS, example: example.info(), integrations: integrations() }));
 example.routes(route, readBody, () => scan());
-route('POST', '/api/config', async (req) => { const body = await readBody(req); const c = saveConfig(body); scan().catch(() => { }); return c; });
+route('POST', '/api/config', async (req) => { const body = await readBody(req); const c = saveConfig(hostedConfigPatch(body)); scan().catch(() => { }); return c; });
 // render encoders this PC can use (one tiny test encode each, cached in data/encoders.json; ?refresh=1 probes again)
 route('GET', '/api/encoders', async (req, url) => ({ ...(await detectEncoders({ ffmpeg: TOOLS.ffmpeg, cacheFile: path.join(DATA_DIR, 'encoders.json'), refresh: url.searchParams.get('refresh') === '1' })), chosen: config().render?.encoder || 'auto', labels: ENC_LABELS }));
 notesApi.routes(route, readBody);
@@ -425,7 +426,7 @@ function foreign(req) {
   return null;
 }
 const server = http.createServer(async (req, res) => {
-  const why = foreign(req);
+  const why = foreign(req) || tokenRefused(req);
   if (why) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('VideoHub: only VideoHub windows and tools on this computer may use this server (' + why + ')'); }
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname !== '/api/ping') lastUse = Date.now();   // RenderGuard's keep-alive ping is not a use
@@ -459,7 +460,7 @@ const server = http.createServer(async (req, res) => {
 
 const port = +(process.env.VIDEOHUB_PORT || config().port || 7788);
 server.on('error', e => { if (e.code === 'EADDRINUSE') { console.error(`VideoHub is already running (port ${port}).`); process.exit(0); } throw e; });
-server.listen(port, '127.0.0.1', () => {
+server.listen(...(SOCKET ? [SOCKET] : [port, '127.0.0.1']), () => {
   console.log(`VideoHub: http://127.0.0.1:${port}`);
   if (!index().at || index().projects.length === 0) scan().catch(e => console.error('scan:', e.message)); else scan().catch(() => { });
   if (process.env.VIDEOHUB_JOBS !== 'off') jobs.resume();   // test instances never pick up the real render queue
