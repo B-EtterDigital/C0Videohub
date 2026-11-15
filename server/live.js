@@ -10,6 +10,7 @@ import { readMeta } from './legacy.js';
 import { vhDir } from './notes.js';
 import { recipe } from './jobs.js';
 import { sourceRevision, invalidateSource, watchSource } from './source-revision.js';
+import { isHyperFrames, hyperframesInfo, withAdapter } from './c0-hyperframes.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -36,7 +37,7 @@ function pageOf(p, rc, meta) {
 
 // does the page (or the scripts next to it) define window.renderOut?
 function hasHook(p, page) {
-  const html = read(path.join(p.path, page)); if (html.includes('renderOut')) return true;
+  const html = read(path.join(p.path, page)); if (html.includes('renderOut') || isHyperFrames(html, path.join(p.path, path.dirname(page)))) return true;
   // scripts the page loads from its own folder (e.g. <script type=module src=main.js>)
   for (const m of html.matchAll(/<script[^>]*\ssrc=["']([^"':?#]+\.m?js)["']/gi)) if (read(path.join(p.path, path.dirname(page), m[1])).includes('window.renderOut')) return true;
   const stack = [path.join(p.path, 'src')]; let n = 0;
@@ -117,13 +118,14 @@ export async function liveInfo(p) {
   if (!hasHook(p, page)) return { ok: false, page, reason: `"${page}" does not define window.renderOut(t); the live preview needs that hook (see docs/PROJECT-CONTRACT.md).` };
   const js = read(path.join(p.path, rc.script || 'render.js'));
   const fpsM = js.match(/\bFPS\s*=\s*(\d+)/);
-  const fps = +(meta.live?.fps || (rc.fps !== 60 ? rc.fps : null) || (fpsM ? fpsM[1] : 0) || 60);
+  const hf = hyperframesInfo(read(path.join(p.path, page)), path.join(p.path, path.dirname(page)));   // C0VIBE: HyperFrames drafts
+  const fps = +(meta.live?.fps || hf?.fps || (rc.fps !== 60 ? rc.fps : null) || (fpsM ? fpsM[1] : 0) || 60);
   const audio = audioOf(p, meta);
-  let dur = +(meta.live?.dur || rc.env?.DUR || 0), durFrom = dur ? 'saved' : null;
+  let dur = +(meta.live?.dur || hf?.dur || rc.env?.DUR || 0), durFrom = dur ? (hf?.dur && !meta.live?.dur ? 'page' : 'saved') : null;
   if (!dur && audio) { try { dur = (await probe(audio)).dur || 0; durFrom = 'audio'; } catch { } }
   if (!dur) { const last = (p.outputs || []).filter(o => o.dur).sort((a, b) => b.mtime - a.mtime)[0]; if (last) { dur = last.dur; durFrom = 'last video'; } }
   if (!dur) { dur = 60; durFrom = 'default'; }
-  const { w, h } = sizeOf(p, rc, page);
+  const { w, h } = hf?.w && hf?.h ? hf : sizeOf(p, rc, page);
   return { ok: true, revision: codeRevision(p, { fresh: true }), page, url: `/live/${p.id}/${page.split('/').map(encodeURIComponent).join('/')}`, fps, dur: +(+dur).toFixed(3), durFrom, w, h,
     audio: audio ? '/media?p=' + encodeURIComponent(audio) : null, audioPath: audio, audioName: audio ? path.relative(p.path, audio) : null, chunkSec: rc.chunkSec || null };
 }
@@ -144,6 +146,7 @@ export function serve(req, res, p, rel) {
     let html = fs.readFileSync(file, 'utf8');
     html = html.replace(/(<script[^>]*type=["']importmap["'][^>]*>)([\s\S]*?)(<\/script>)/gi, (m, a, json, c) => a + json.replace(/"\/(?!\/)/g, '"' + pre) + c)
       .replace(/(\s(?:src|href)=["'])\/(?!\/)/gi, '$1' + pre);
+    html = withAdapter(html, path.dirname(file));   // C0VIBE: after the rewrite, so the adapter's own /c0-hyperframes.js stays at the hub root
     res.writeHead(200, head); return res.end(html);
   }
   res.writeHead(200, head);
