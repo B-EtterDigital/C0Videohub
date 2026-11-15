@@ -92,6 +92,7 @@ export async function create(body) {
     if (!chunks.length) throw Object.assign(new Error('Which chunks to re-render is not clear (give notes, seconds or chunks).'), { code: 400 });
     job.chunks = chunks; job.changedRanges = merge(chunks.map(c => [c * rc.chunkSec, Math.min((c + 1) * rc.chunkSec, +rc.env.DUR || Infinity)]));
   } else if (mode === 'command') {
+    { const refused = globalThis.c0Hosted?.command(); if (refused) throw refused; }
     if (!body.cmd) throw Object.assign(new Error('mode "command" needs cmd'), { code: 400 });
     job.cmd = body.cmd; job.output = body.output || null;
     // a custom command is any command line: it waits in the queue until the user approves it on the Renders page

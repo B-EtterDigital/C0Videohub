@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { tokenRefused, hostedConfigPatch, hostedEnv, assertScriptInside, hostedCopyTo } from './c0-hosted.js';
+import { tokenRefused, hostedConfigPatch, hostedEnv, assertScriptInside, hostedCopyTo, hostedStartRefusal, hostedCommandRefusal } from './c0-hosted.js';
 
 const tmp = path.resolve('.test-tmp', 'c0-hosted');
 
@@ -42,4 +42,17 @@ test('a render copy goes inside the outputs folder', () => {
   fs.mkdirSync(outputs, { recursive: true });
   assert.equal(hostedCopyTo(path.join(outputs, 'a'), outputs), path.join(outputs, 'a'));
   assert.throws(() => hostedCopyTo('/etc', outputs), /inside the outputs folder/);
+});
+
+test('a hosted hub never starts on a TCP port', () => {
+  assert.match(hostedStartRefusal(true, ''), /needs VIDEOHUB_SOCKET/);
+  assert.equal(hostedStartRefusal(true, '/run/hub.sock'), null);
+  assert.equal(hostedStartRefusal(false, ''), null);
+});
+
+test('a hosted hub refuses custom command renders', () => {
+  const refused = hostedCommandRefusal(true);
+  assert.equal(refused.code, 403);
+  assert.match(refused.message, /switched off/);
+  assert.equal(hostedCommandRefusal(false), null);
 });

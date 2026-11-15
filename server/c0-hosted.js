@@ -68,8 +68,21 @@ function prepareSocket(socket) {
   try { if (fs.statSync(socket).isSocket()) fs.unlinkSync(socket); } catch { }
 }
 
+// A hosted hub never falls back to a TCP port: without its socket it does not start (C0ray finding, 2026-11-15).
+export function hostedStartRefusal(hosted = HOSTED, socket = SOCKET) {
+  return hosted && !socket ? 'VideoHub hosted mode needs VIDEOHUB_SOCKET; it does not listen on a TCP port.' : null;
+}
+
+// Custom command jobs run a command line through the system shell. A hosted hub refuses them; render scripts inside
+// the film folder still run (C0ray finding, 2026-11-15).
+export function hostedCommandRefusal(hosted = HOSTED) {
+  return hosted ? Object.assign(new Error('In C0VIBE, custom command renders are switched off. Use the film\'s render script.'), { code: 403 }) : null;
+}
+
 // jobs.js reads these through globalThis so its in-memory tests (which strip imports) keep running unchanged.
 if (HOSTED) {
+  const refusal = hostedStartRefusal();
+  if (refusal) { console.error(refusal); process.exit(2); }
   prepareSocket(SOCKET);
-  globalThis.c0Hosted = { env: hostedEnv, script: assertScriptInside, copyTo: hostedCopyTo };
+  globalThis.c0Hosted = { env: hostedEnv, script: assertScriptInside, copyTo: hostedCopyTo, command: hostedCommandRefusal };
 }
