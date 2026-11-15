@@ -5,6 +5,7 @@
 //   actors  the film's characters (drawn through the engine's actor()): moved, scaled or hidden, in one shot or the film
 // Everything is saved at once to the film's tweaks.json ("items2d", "actors2d"); no code change, no Claude.
 import { h, api, toast, confirmBox } from '../app.js';
+import { vhColor, onThemeChange } from '../c0-theme.js';
 
 const TC = (s) => { s = Math.max(0, +s || 0); const m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(2).padStart(5, '0')}`; };
 const parseTC = (v) => { const m = /^(?:(\d+):)?(\d+(?:[.,]\d+)?)$/.exec(String(v).trim()); return m ? (+(m[1] || 0)) * 60 + +m[2].replace(',', '.') : null; };
@@ -31,6 +32,7 @@ export function createEdit2d({ src, projectId, frame, panelHost, onOpen, onClose
   const now = () => +time() || 0;
   const redraw = () => { try { src.currentTime = src.currentTime; } catch { } setTimeout(draw, 30); };
   function check() { V = vh(); btn.hidden = !V; if (open && !V) close(true); }
+  const offTheme = onThemeChange(() => { if (open) draw(); });
 
   function start() {
     V = vh(); if (!V) return;
@@ -76,19 +78,19 @@ export function createEdit2d({ src, projectId, frame, panelHost, onOpen, onClose
     g.font = '600 11px Segoe UI'; g.textBaseline = 'bottom';
     for (const a of actors()) {
       const on = actSel && actSel.key === a.key && actSel.shot === a.shot;
-      g.strokeStyle = on ? '#e6c14d' : a.hidden ? 'rgba(232,84,84,.8)' : 'rgba(96,156,255,.85)'; g.lineWidth = on ? 2 : 1.3; g.setLineDash(a.hidden ? [4, 4] : []);
+      g.strokeStyle = on ? vhColor('yellow') : a.hidden ? vhColor('red', .8) : vhColor('blue', .85); g.lineWidth = on ? 2 : 1.3; g.setLineDash(a.hidden ? [4, 4] : []);
       const x = a.x * k, y = a.y * k, hh = a.h * k, w2 = Math.max(10, hh * 0.18);
       g.strokeRect(x - w2, y - hh, w2 * 2, hh); g.setLineDash([]);
-      g.fillStyle = 'rgba(10,12,16,.75)'; const label = `${a.label}${a.hidden ? ' (hidden)' : ''}`; const tw = g.measureText(label).width + 8;
-      g.fillRect(x - w2, y - hh - 16, tw, 15); g.fillStyle = on ? '#e6c14d' : '#cfe0ff'; g.fillText(label, x - w2 + 4, y - hh - 2);
+      g.fillStyle = vhColor('bg', .75); const label = `${a.label}${a.hidden ? ' (hidden)' : ''}`; const tw = g.measureText(label).width + 8;
+      g.fillRect(x - w2, y - hh - 16, tw, 15); g.fillStyle = on ? vhColor('yellow') : vhColor('text'); g.fillText(label, x - w2 + 4, y - hh - 2);
     }
     // items: their boxes; the selected one with handles
     for (const it of visible()) {
       const c = corners(it).map((p) => ({ x: p.x * k, y: p.y * k })), on = it.id === sel;
-      g.strokeStyle = on ? '#e6c14d' : 'rgba(255,255,255,.55)'; g.lineWidth = on ? 2 : 1; g.setLineDash(on ? [] : [5, 4]);
+      g.strokeStyle = on ? vhColor('yellow') : vhColor('text', .55); g.lineWidth = on ? 2 : 1; g.setLineDash(on ? [] : [5, 4]);
       g.beginPath(); c.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath(); g.stroke(); g.setLineDash([]);
       if (on) {
-        g.fillStyle = '#e6c14d';
+        g.fillStyle = vhColor('yellow');
         for (const p of c) g.fillRect(p.x - HS / 2, p.y - HS / 2, HS, HS);
         const rh = rotHandle(it); g.beginPath(); g.arc(rh.x * k, rh.y * k, HS / 1.6, 0, Math.PI * 2); g.fill();
       }
@@ -344,5 +346,5 @@ export function createEdit2d({ src, projectId, frame, panelHost, onOpen, onClose
   src.addEventListener('loadedmetadata', check);
   src.addEventListener('seeked', onSeek);
   const ro = new ResizeObserver(() => draw()); ro.observe(frame);
-  return { el: btn, check, close, isOpen: () => open, undo: () => (open ? back(true) : false), destroy() { close(true); ro.disconnect(); src.removeEventListener('loadedmetadata', check); src.removeEventListener('seeked', onSeek); } };
+  return { el: btn, check, close, isOpen: () => open, undo: () => (open ? back(true) : false), destroy() { close(true); offTheme(); ro.disconnect(); src.removeEventListener('loadedmetadata', check); src.removeEventListener('seeked', onSeek); } };
 }

@@ -9,12 +9,14 @@
 // Ctrl+wheel zooms at the pointer (plain wheel too, over the ruler), Shift+wheel pans, plain wheel scrolls the rows;
 // double-click shows the whole film. The view (zoom/pan/follow) lives in tlview.js; its buttons are in the transport.
 import { h } from '../app.js';
+import { vhColor, onThemeChange } from '../c0-theme.js';
 import { createView } from './tlview.js';
 import { ls } from './dock.js';
 import { buildRows, tickSpec, fmtTick, clipLen, assignLane, findDragSnap, snapEdgeTime, edgeScrollStep } from './tracks.js';
 
-const STATUS_COLOR = { 'open': '#e6c14d', claude: '#f08a3c', 'fixed': '#46c480', 'approved': '#3a7d58', 'reopened': '#e85454' };
-const RULER = 24, PLAY = '#ff5c6c', ROWS_KEY = 'vh-tl-rows';
+const STATUS_KEY = { 'open': 'yellow', claude: 'accent', 'fixed': 'green', 'approved': 'green', 'reopened': 'red' };
+const statusColor = s => vhColor(STATUS_KEY[s] || 'yellow');
+const RULER = 24, ROWS_KEY = 'vh-tl-rows';
 const HINT = 'Ctrl+wheel: zoom · Shift+wheel: pan · wheel on ruler: zoom · double-click: whole film';
 // scene lane colours (cycled); a scene's set name keeps its colour when the film comes back to it
 const SCENE_COLORS = ['#3d5a8c', '#7a4f8c', '#3d7a63', '#8c6a3d', '#8c3d4f', '#3d7a85', '#6a7a3d', '#5a4f8c'];
@@ -51,6 +53,7 @@ export function createTimeline(ctx) {
   const V = createView({ dur });
   const v = () => V.get();
   const offView = V.onChange(() => draw());
+  const offTheme = onThemeChange(() => { waveCache.clear(); draw(); });
   // widths read only on resize: reading clientWidth while drawing every frame forced a reflow of the whole page
   // (10 ms per frame with ~100 note cards, enough to make the live preview drop frames)
   let cw = 600, dpr = 1;
@@ -111,77 +114,77 @@ export function createTimeline(ctx) {
   const KY = RULER - 7;
   function diamond(c, x, y) {
     const r = 5.5; c.beginPath(); c.moveTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x, y + r); c.lineTo(x - r, y); c.closePath();
-    c.fillStyle = '#ffd83d'; c.fill(); c.lineWidth = 1.2; c.strokeStyle = '#16171c'; c.stroke();
+    c.fillStyle = vhColor('yellow'); c.fill(); c.lineWidth = 1.2; c.strokeStyle = vhColor('panel'); c.stroke();
   }
   function drawRuler() {
     const w = W(), [a, b] = v(), p = pps(), fps = ctx.fps();
-    rg.clearRect(0, 0, w, RULER); rg.fillStyle = '#121318'; rg.fillRect(0, 0, w, RULER);
+    rg.clearRect(0, 0, w, RULER); rg.fillStyle = vhColor('row'); rg.fillRect(0, 0, w, RULER);
     // changed ranges: a band along the bottom
-    rg.fillStyle = 'rgba(96,156,255,.45)'; for (const [x, y] of ctx.changed() || []) rg.fillRect(tx(x), RULER - 4, Math.max(2, tx(y) - tx(x)), 4);
+    rg.fillStyle = vhColor('blue', .45); for (const [x, y] of ctx.changed() || []) rg.fillRect(tx(x), RULER - 4, Math.max(2, tx(y) - tx(x)), 4);
     // the I/O range: a band with bright sides (brighter while it loops)
     const K = keys();
     if (K.length === 2) {
       const lp = ctx.loopOn();
-      rg.fillStyle = lp ? 'rgba(255,216,61,.24)' : 'rgba(255,216,61,.12)'; rg.fillRect(K[0].x, 0, Math.max(1, K[1].x - K[0].x), RULER);
-      rg.globalAlpha = lp ? 1 : 0.7; rg.fillStyle = '#ffd83d'; rg.fillRect(K[0].x - 1, 0, 2, RULER); rg.fillRect(K[1].x - 1, 0, 2, RULER); rg.globalAlpha = 1;
+      rg.fillStyle = lp ? vhColor('yellow', .24) : vhColor('yellow', .12); rg.fillRect(K[0].x, 0, Math.max(1, K[1].x - K[0].x), RULER);
+      rg.globalAlpha = lp ? 1 : 0.7; rg.fillStyle = vhColor('yellow'); rg.fillRect(K[0].x - 1, 0, 2, RULER); rg.fillRect(K[1].x - 1, 0, 2, RULER); rg.globalAlpha = 1;
     }
     // ticks
     const T = tickSpec(dur(), p, fps);
-    rg.fillStyle = '#4a4d58';
+    rg.fillStyle = vhColor('dim');
     if (T.minor < T.major && T.minor * p >= 8) for (let i = Math.ceil(a / T.minor), n = 0; i * T.minor <= b && n < 4000; i++, n++) rg.fillRect(Math.round(tx(i * T.minor)), RULER - 5, 1, 5);
-    rg.fillStyle = '#8c8f9c'; rg.font = '10px Segoe UI'; rg.textBaseline = 'top';
+    rg.fillStyle = vhColor('muted'); rg.font = '10px Segoe UI'; rg.textBaseline = 'top';
     for (let i = Math.ceil(a / T.major - 1e-9), n = 0; i * T.major <= b + 1e-9 && n < 1000; i++, n++) {
       const t = i * T.major, x = Math.round(tx(t)); rg.fillRect(x, RULER - 10, 1, 10); rg.fillText(fmtTick(t, fps, T.frames), x + 3, 2);
     }
     // render chunks: short marks at the bottom
     const cs = ctx.chunkSec();
-    if (cs && cs * p > 7) { rg.fillStyle = 'rgba(140,200,255,.55)'; for (let t = Math.ceil(a / cs) * cs; t <= b; t += cs) rg.fillRect(tx(t), RULER - 7, 1, 7); }
+    if (cs && cs * p > 7) { rg.fillStyle = vhColor('blue', .55); for (let t = Math.ceil(a / cs) * cs; t <= b; t += cs) rg.fillRect(tx(t), RULER - 7, 1, 7); }
     for (const k of K) diamond(rg, k.x, KY);
-    if (hoverRow === 'ruler' && hoverX != null && !dragging) { rg.fillStyle = 'rgba(255,255,255,.35)'; rg.fillRect(hoverX, 0, 1, RULER); }
+    if (hoverRow === 'ruler' && hoverX != null && !dragging) { rg.fillStyle = vhColor('text', .35); rg.fillRect(hoverX, 0, 1, RULER); }
     // playhead flag
-    const px = tx(ctx.time()); rg.fillStyle = PLAY; rg.fillRect(px - 1, 0, 2, RULER);
+    const px = tx(ctx.time()); rg.fillStyle = vhColor('red'); rg.fillRect(px - 1, 0, 2, RULER);
     rg.beginPath(); rg.moveTo(px - 6, 0); rg.lineTo(px + 6, 0); rg.lineTo(px + 6, 5); rg.lineTo(px, 10); rg.lineTo(px - 6, 5); rg.closePath(); rg.fill();
-    rg.fillStyle = '#0b0c0f'; rg.fillRect(0, RULER - 1, w, 1);
+    rg.fillStyle = vhColor('border'); rg.fillRect(0, RULER - 1, w, 1);
   }
 
   function drawRows() {
     const w = W(), [a, b] = v(), now = ctx.time();
-    g.clearRect(0, 0, w, H); g.fillStyle = '#16171c'; g.fillRect(0, 0, w, H);
+    g.clearRect(0, 0, w, H); g.fillStyle = vhColor('panel'); g.fillRect(0, 0, w, H);
     rows.forEach((r, i) => {
       g.save(); g.beginPath(); g.rect(0, r.y, w, r.h); g.clip();
-      g.fillStyle = i % 2 ? '#14151a' : '#17181e'; g.fillRect(0, r.y, w, r.h);
+      g.fillStyle = i % 2 ? vhColor('bg') : vhColor('panel'); g.fillRect(0, r.y, w, r.h);
       const dim = r.kind === 'layer' && !on(r.id);
       const he = headEls.get(r.id); if (he && he.off !== dim) { he.off = dim; he.el.classList.toggle('off', dim); }
       ({ pic: drawPic, mix: drawMix, scenes: drawScenes, notes: drawNotes, text: drawText, layer: drawLayer, cues: drawLayer, clips: drawClips })[r.kind]?.(r, a, b, now, dim);
       if (r.id === 'music' && bands.length) drawBands(r);
       g.restore();
-      g.fillStyle = '#0d0e12'; g.fillRect(0, r.y + r.h - 1, w, 1);
+      g.fillStyle = vhColor('border'); g.fillRect(0, r.y + r.h - 1, w, 1);
     });
     // the range's edges as faint lines through every row
-    for (const k of keys()) { g.fillStyle = 'rgba(255,216,61,.35)'; g.fillRect(k.x - 0.5, 0, 1, H); }
+    for (const k of keys()) { g.fillStyle = vhColor('yellow', .35); g.fillRect(k.x - 0.5, 0, 1, H); }
     // the snap guide of a clip drag
-    if (clipDrag?.moved && clipDrag.guide != null) { g.fillStyle = '#25d0c2'; g.fillRect(Math.round(tx(clipDrag.guide)), 0, 1, H); }
+    if (clipDrag?.moved && clipDrag.guide != null) { g.fillStyle = vhColor('teal'); g.fillRect(Math.round(tx(clipDrag.guide)), 0, 1, H); }
     // a sound being dragged in from the library / Explorer: where it will land
     if (dropAt) {
       const x = Math.round(tx(dropAt.t)), r = dropAt.row, cy = r ? r.y + 2 : 2;
-      g.fillStyle = '#25d0c2'; g.fillRect(x, 0, 1, H);
+      g.fillStyle = vhColor('teal'); g.fillRect(x, 0, 1, H);
       g.font = '11px Segoe UI'; g.textBaseline = 'top'; const tw = g.measureText(dropAt.label).width + 10, cx = Math.min(x + 4, w - tw - 2);
-      g.fillRect(cx, cy, tw, 16); g.fillStyle = '#06201d'; g.fillText(dropAt.label, cx + 5, cy + 2);
+      g.fillRect(cx, cy, tw, 16); g.fillStyle = vhColor('bg'); g.fillText(dropAt.label, cx + 5, cy + 2);
     }
     // playhead
-    const px = tx(now); g.fillStyle = PLAY; g.fillRect(px - 1, 0, 2, H);
+    const px = tx(now); g.fillStyle = vhColor('red'); g.fillRect(px - 1, 0, 2, H);
   }
   // over the picture and the film sound: cuts, notes, the range tint, changed ranges, the hover line
   function overlays(r, chunks) {
     const w = W(), y = r.y, hh = r.h;
-    if (chunks) { const cs = ctx.chunkSec(), [a, b] = v(); if (cs && cs * pps() > 7) { g.fillStyle = 'rgba(255,255,255,.18)'; for (let t = Math.ceil(a / cs) * cs; t <= b; t += cs) g.fillRect(tx(t), y, 1, hh); } }
-    g.fillStyle = 'rgba(96,156,255,.28)'; for (const [x0, x1] of ctx.changed() || []) g.fillRect(tx(x0), y, Math.max(2, tx(x1) - tx(x0)), hh);
-    const K = keys(); if (K.length === 2) { g.fillStyle = ctx.loopOn() ? 'rgba(230,193,77,.16)' : 'rgba(230,193,77,.08)'; g.fillRect(K[0].x, y, Math.max(1, K[1].x - K[0].x), hh); }
-    scenes.forEach((sc, i) => { if (!i) return; const x = tx(sc.t0); if (x > 0 && x < w) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x, y, 1, hh); } });
+    if (chunks) { const cs = ctx.chunkSec(), [a, b] = v(); if (cs && cs * pps() > 7) { g.fillStyle = vhColor('text', .18); for (let t = Math.ceil(a / cs) * cs; t <= b; t += cs) g.fillRect(tx(t), y, 1, hh); } }
+    g.fillStyle = vhColor('blue', .28); for (const [x0, x1] of ctx.changed() || []) g.fillRect(tx(x0), y, Math.max(2, tx(x1) - tx(x0)), hh);
+    const K = keys(); if (K.length === 2) { g.fillStyle = ctx.loopOn() ? vhColor('yellow', .16) : vhColor('yellow', .08); g.fillRect(K[0].x, y, Math.max(1, K[1].x - K[0].x), hh); }
+    scenes.forEach((sc, i) => { if (!i) return; const x = tx(sc.t0); if (x > 0 && x < w) { g.fillStyle = vhColor('text', .55); g.fillRect(x, y, 1, hh); } });
     const sel = ctx.selected();
-    for (const n of ctx.notes()) { g.fillStyle = STATUS_COLOR[n.status] || '#e6c14d'; g.globalAlpha = n.id === sel ? 0.9 : 0.35; g.fillRect(tx(n.t) - 0.5, y, n.id === sel ? 2 : 1, hh); }
+    for (const n of ctx.notes()) { g.fillStyle = statusColor(n.status); g.globalAlpha = n.id === sel ? 0.9 : 0.35; g.fillRect(tx(n.t) - 0.5, y, n.id === sel ? 2 : 1, hh); }
     g.globalAlpha = 1;
-    if (hoverX != null && !dragging && hoverRow !== 'ruler') { g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(hoverX, y, 1, hh); }
+    if (hoverX != null && !dragging && hoverRow !== 'ruler') { g.fillStyle = vhColor('text', .35); g.fillRect(hoverX, y, 1, hh); }
   }
   function drawPic(r, a, b) {
     const w = W();
@@ -191,20 +194,20 @@ export function createTimeline(ctx) {
         const x0 = tx(i * strip.step), x1 = tx((i + 1) * strip.step);
         g.drawImage(stripImg, (i % strip.cols) * strip.tw, Math.floor(i / strip.cols) * strip.th, strip.tw, strip.th, x0, r.y, Math.max(1, x1 - x0), r.h - 1);
       }
-    } else { g.fillStyle = '#20222a'; g.fillRect(0, r.y, w, r.h); }
+    } else { g.fillStyle = vhColor('card'); g.fillRect(0, r.y, w, r.h); }
     overlays(r, true);
   }
-  function drawMix(r) { wave('mix', r, '#9aa0b0', waveImg); overlays(r, !rowOf('pic')); }
+  function drawMix(r) { wave('mix', r, vhColor('muted'), waveImg); overlays(r, !rowOf('pic')); }
   function drawScenes(r, a, b, now) {
     const w = W(), y0 = r.y, hh = r.h;
-    g.fillStyle = '#101116'; g.fillRect(0, y0, w, hh);
+    g.fillStyle = vhColor('bg'); g.fillRect(0, y0, w, hh);
     g.font = `600 ${hh < 18 ? 9 : 10.5}px Segoe UI`; g.textBaseline = 'middle';
     scenes.forEach((sc, i) => {
       const x0 = tx(sc.t0), x1 = tx(sc.t1); if (x1 < 0 || x0 > w) return;
       const cur = now >= sc.t0 && now < sc.t1, sel = selScene === i;
       g.fillStyle = colorOf(sc, i); g.globalAlpha = cur || sel ? 1 : 0.62;
       g.fillRect(x0 + 0.5, y0 + 2, Math.max(1, x1 - x0 - 1), hh - 4); g.globalAlpha = 1;
-      if (sel) { g.strokeStyle = '#e6c14d'; g.lineWidth = 1.5; g.strokeRect(x0 + 1, y0 + 2.5, Math.max(1, x1 - x0 - 2), hh - 5); }
+      if (sel) { g.strokeStyle = vhColor('yellow'); g.lineWidth = 1.5; g.strokeRect(x0 + 1, y0 + 2.5, Math.max(1, x1 - x0 - 2), hh - 5); }
       if (x1 - x0 > 16 && hh >= 12) { g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0 - 2, hh); g.clip(); g.fillStyle = '#f2f3f7'; g.fillText((i + 1) + ' · ' + sc.name, Math.max(x0, 0) + 4, y0 + hh / 2); g.restore(); }
     });
   }
@@ -222,40 +225,40 @@ export function createTimeline(ctx) {
   const groupAt = (x, r) => r && r.kind === 'notes' ? groups.slice().sort((p, q) => Math.abs(p.x - x) - Math.abs(q.x - x)).find(gr => Math.abs(gr.x - x) < 12) || null : null;
   function drawNotes(r) {
     const w = W(), sel = ctx.selected(), y0 = r.y, hh = r.h, rad = Math.max(3, Math.min(5, hh / 2 - 3));
-    g.fillStyle = '#121318'; g.fillRect(0, y0, w, hh);
-    for (const n of ctx.notes()) if (n.t2 != null) { const x = tx(n.t); g.fillStyle = STATUS_COLOR[n.status] || '#e6c14d'; g.globalAlpha = .55; g.fillRect(x, y0 + hh - 5, Math.max(3, tx(n.t2) - x), 3); g.globalAlpha = 1; }
+    g.fillStyle = vhColor('row'); g.fillRect(0, y0, w, hh);
+    for (const n of ctx.notes()) if (n.t2 != null) { const x = tx(n.t); g.fillStyle = statusColor(n.status); g.globalAlpha = .55; g.fillRect(x, y0 + hh - 5, Math.max(3, tx(n.t2) - x), 3); g.globalAlpha = 1; }
     groups = noteGroups();
     g.font = `600 ${hh < 18 ? 8.5 : 10}px Segoe UI`; g.textBaseline = 'middle'; g.textAlign = 'center';
     for (const gr of groups) {
-      const hasSel = gr.notes.some(n => n.id === sel), c = STATUS_COLOR[gr.notes[0].status] || '#e6c14d', cy = y0 + hh / 2 - 1;
+      const hasSel = gr.notes.some(n => n.id === sel), c = statusColor(gr.notes[0].status), cy = y0 + hh / 2 - 1;
       if (gr.notes.length === 1) { g.beginPath(); g.arc(gr.x, cy, hasSel ? rad + 1 : rad, 0, Math.PI * 2); g.fillStyle = c; g.fill(); }
-      else { const wpx = 10 + String(gr.notes.length).length * 6, hb = Math.min(12, hh - 4); g.fillStyle = c; g.beginPath(); g.roundRect(gr.x - wpx / 2, cy - hb / 2, wpx, hb, hb / 2); g.fill(); g.fillStyle = '#111'; g.fillText(String(gr.notes.length), gr.x, cy + 0.5); }
-      if (hasSel) { g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.arc(gr.x, cy, rad + 3, 0, Math.PI * 2); g.stroke(); }
+      else { const wpx = 10 + String(gr.notes.length).length * 6, hb = Math.min(12, hh - 4); g.fillStyle = c; g.beginPath(); g.roundRect(gr.x - wpx / 2, cy - hb / 2, wpx, hb, hb / 2); g.fill(); g.fillStyle = vhColor('bg'); g.fillText(String(gr.notes.length), gr.x, cy + 0.5); }
+      if (hasSel) { g.strokeStyle = vhColor('text'); g.lineWidth = 1.5; g.beginPath(); g.arc(gr.x, cy, rad + 3, 0, Math.PI * 2); g.stroke(); }
     }
     g.textAlign = 'left';
   }
   const textItems = () => tr.words.length && pps() > 90 ? tr.words : tr.phrases;
   function drawText(r, a, b, now) {
     const w = W(), y0 = r.y, hh = r.h;
-    g.fillStyle = '#121318'; g.fillRect(0, y0, w, hh);
+    g.fillStyle = vhColor('row'); g.fillRect(0, y0, w, hh);
     g.font = `${hh < 18 ? 9 : 11}px Segoe UI`; g.textBaseline = 'middle';
     textItems().forEach(([s, e, txt], i) => {
       const x0 = tx(s), x1 = tx(e); if (x1 < 0 || x0 > w) return;
       const cur = now >= s && now < e;
-      g.fillStyle = cur ? 'rgba(96,156,255,.35)' : i % 2 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.09)';
+      g.fillStyle = cur ? vhColor('blue', .35) : i % 2 ? vhColor('text', .05) : vhColor('text', .09);
       g.fillRect(x0, y0 + 2, Math.max(2, x1 - x0 - 1), hh - 4);
-      if (x1 - x0 > 14) { g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0 - 2, hh); g.clip(); g.fillStyle = cur ? '#ffffff' : '#b9bcc6'; g.fillText(txt, x0 + 3, y0 + hh / 2); g.restore(); }
+      if (x1 - x0 > 14) { g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0 - 2, hh); g.clip(); g.fillStyle = cur ? vhColor('text') : vhColor('text', .75); g.fillText(txt, x0 + 3, y0 + hh / 2); g.restore(); }
     });
   }
   function drawLayer(r, a, b, now, dim) {
     const w = W(), y0 = r.y, hh = r.h;
     g.globalAlpha = dim ? 0.28 : 1;
     if (r.kind === 'layer') {
-      if (r.layer?.placeholder) { g.fillStyle = '#5c5f69'; g.font = '10px Segoe UI'; g.textBaseline = 'middle'; g.fillText('no separate audio file · use "Apply to film" to hear it', 6, y0 + hh / 2); }
+      if (r.layer?.placeholder) { g.fillStyle = vhColor('dim'); g.font = '10px Segoe UI'; g.textBaseline = 'middle'; g.fillText('no separate audio file · use "Apply to film" to hear it', 6, y0 + hh / 2); }
       else wave(r.id, r, r.color, layerImg[r.id]);
     }
     if (r.cues && cues) {
-      g.fillStyle = '#f08a3c'; g.font = '9.5px Segoe UI'; g.textBaseline = 'middle';
+      g.fillStyle = vhColor('accent'); g.font = '9.5px Segoe UI'; g.textBaseline = 'middle';
       const named = pps() > 35 && hh >= 18; let lastX = -99;
       for (const c of cues) { const x = tx(c.t); if (x < -2 || x > w + 2) continue; g.fillRect(x, y0 + 2, 1.5, hh - 4); if (named && x - lastX > 48) { g.fillText(c.name, x + 3, y0 + hh / 2); lastX = x; } }
     }
@@ -269,10 +272,10 @@ export function createTimeline(ctx) {
     for (const e of bands) {
       const [t0, t1] = bandSpan(e), x0 = tx(t0), x1 = tx(t1); if (x1 < 0 || x0 > w) continue;
       const fw = Math.max(1, (e.fade > 0 ? e.fade : 0.12) * p);
-      g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x0, y, x1 - x0, hh);
-      g.fillStyle = e.duck ? 'rgba(255,216,61,.38)' : 'rgba(255,216,61,.18)'; g.fillRect(x0 - fw, y, 2 * fw, hh); g.fillRect(x1 - fw, y, 2 * fw, hh);
-      if (e.sel) { g.strokeStyle = '#25d0c2'; g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y + 0.75, Math.max(1, x1 - x0 - 1.5), hh - 1.5); }
-      if (x1 - x0 > 54 && hh >= 14) { g.fillStyle = e.duck ? '#ffd83d' : '#c9ccd6'; g.fillText(e.music < 0.004 ? 'No music' : 'Music ' + Math.round(e.music * 100) + '%', Math.max(x0, 0) + 4, y + 2); }
+      g.fillStyle = vhColor('bg', .45); g.fillRect(x0, y, x1 - x0, hh);
+      g.fillStyle = e.duck ? vhColor('yellow', .38) : vhColor('yellow', .18); g.fillRect(x0 - fw, y, 2 * fw, hh); g.fillRect(x1 - fw, y, 2 * fw, hh);
+      if (e.sel) { g.strokeStyle = vhColor('teal'); g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y + 0.75, Math.max(1, x1 - x0 - 1.5), hh - 1.5); }
+      if (x1 - x0 > 54 && hh >= 14) { g.fillStyle = e.duck ? vhColor('yellow') : vhColor('text', .8); g.fillText(e.music < 0.004 ? 'No music' : 'Music ' + Math.round(e.music * 100) + '%', Math.max(x0, 0) + 4, y + 2); }
     }
   }
   // a duck band under the pointer: its edge (6 px) or body; the other bands are drawn only
@@ -362,21 +365,21 @@ export function createTimeline(ctx) {
     }
     // fades: a dark wedge with a yellow diagonal (the volume ramp)
     const fi = Math.min(len, c.fin || 0), fo = Math.min(len, c.fout || 0);
-    if (fi > 0) { const xf = tx(c.t + fi); g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.moveTo(x0, top); g.lineTo(xf, top); g.lineTo(x0, top + bh); g.fill(); g.strokeStyle = '#ffd83d'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, top + bh); g.lineTo(xf, top); g.stroke(); }
-    if (fo > 0) { const xf = tx(c.t + len - fo); g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.moveTo(x1, top); g.lineTo(xf, top); g.lineTo(x1, top + bh); g.fill(); g.strokeStyle = '#ffd83d'; g.lineWidth = 2; g.beginPath(); g.moveTo(x1, top + bh); g.lineTo(xf, top); g.stroke(); }
-    if (c.id === clipSel || ghost) { g.strokeStyle = ghost ? '#ffffff' : '#25d0c2'; g.lineWidth = 2; g.setLineDash(ghost ? [4, 3] : []); g.beginPath(); g.roundRect(x0 + 1, top + 1, Math.max(2, bw - 2), bh - 2, lh < 26 ? 2 : 5); g.stroke(); g.setLineDash([]); }
+    if (fi > 0) { const xf = tx(c.t + fi); g.fillStyle = vhColor('bg', .45); g.beginPath(); g.moveTo(x0, top); g.lineTo(xf, top); g.lineTo(x0, top + bh); g.fill(); g.strokeStyle = vhColor('yellow'); g.lineWidth = 2; g.beginPath(); g.moveTo(x0, top + bh); g.lineTo(xf, top); g.stroke(); }
+    if (fo > 0) { const xf = tx(c.t + len - fo); g.fillStyle = vhColor('bg', .45); g.beginPath(); g.moveTo(x1, top); g.lineTo(xf, top); g.lineTo(x1, top + bh); g.fill(); g.strokeStyle = vhColor('yellow'); g.lineWidth = 2; g.beginPath(); g.moveTo(x1, top + bh); g.lineTo(xf, top); g.stroke(); }
+    if (c.id === clipSel || ghost) { g.strokeStyle = ghost ? vhColor('text') : vhColor('teal'); g.lineWidth = 2; g.setLineDash(ghost ? [4, 3] : []); g.beginPath(); g.roundRect(x0 + 1, top + 1, Math.max(2, bw - 2), bh - 2, lh < 26 ? 2 : 5); g.stroke(); g.setLineDash([]); }
     if (bw >= 18 && bh >= 10) { g.save(); g.beginPath(); g.rect(x0, top, bw - 2, bh); g.clip(); g.fillStyle = '#eef3f0'; g.fillText((music ? '♪ ' : '') + (c.name || 'sound'), Math.max(x0, 0) + 4, top + bh / 2); g.restore(); }
     // hovered (or being dragged): trim edge, fade squares + their lengths
     if (hover && bw >= 3 * EDGE) {
-      g.fillStyle = 'rgba(255,255,255,.55)';
+      g.fillStyle = vhColor('text', .55);
       if (hover === 'trimL') g.fillRect(x0, top, 3, bh); if (hover === 'trimR') g.fillRect(x1 - 3, top, 3, bh);
       if (bw >= FADE_MIN_W) {
         const F = fadeHandles(c, B);
         for (const k of ['fin', 'fout']) {
-          g.fillStyle = hover === k ? '#ffd83d' : '#1b1c22'; g.fillRect(F[k].x, F[k].y, FADE, FADE);
-          g.strokeStyle = '#ffd83d'; g.lineWidth = 1; g.strokeRect(F[k].x + 0.5, F[k].y + 0.5, FADE - 1, FADE - 1);
+          g.fillStyle = hover === k ? vhColor('yellow') : vhColor('bg'); g.fillRect(F[k].x, F[k].y, FADE, FADE);
+          g.strokeStyle = vhColor('yellow'); g.lineWidth = 1; g.strokeRect(F[k].x + 0.5, F[k].y + 0.5, FADE - 1, FADE - 1);
           const v = k === 'fin' ? fi : fo;
-          if (v > 0 && bh >= 14) { g.fillStyle = '#ffd83d'; g.font = '600 9px Segoe UI'; g.textAlign = k === 'fin' ? 'left' : 'right'; g.fillText(v.toFixed(2) + 's', k === 'fin' ? F[k].x + FADE + 3 : F[k].x - 3, top + FADE / 2 + 1); g.textAlign = 'left'; g.font = '600 9.5px Segoe UI'; }
+          if (v > 0 && bh >= 14) { g.fillStyle = vhColor('yellow'); g.font = '600 9px Segoe UI'; g.textAlign = k === 'fin' ? 'left' : 'right'; g.fillText(v.toFixed(2) + 's', k === 'fin' ? F[k].x + FADE + 3 : F[k].x - 3, top + FADE / 2 + 1); g.textAlign = 'left'; g.font = '600 9.5px Segoe UI'; }
         }
       }
     }
@@ -384,8 +387,8 @@ export function createTimeline(ctx) {
   }
   function drawClips(r) {
     const w = W(), lh = r.h / r.lanes;
-    g.fillStyle = r.clipKind === 'music' ? '#121722' : '#17140f'; g.fillRect(0, r.y, w, r.h);
-    for (let i = 1; i < r.lanes; i++) { g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, r.y + i * lh, w, 1); }
+    g.fillStyle = vhColor('bg'); g.fillRect(0, r.y, w, r.h);
+    for (let i = 1; i < r.lanes; i++) { g.fillStyle = vhColor('text', .05); g.fillRect(0, r.y + i * lh, w, 1); }
     g.font = '600 9.5px Segoe UI'; g.textBaseline = 'middle';
     const D = clipDrag && clipDrag.moved ? clipDrag : null;
     for (const c of clips || []) {
@@ -701,6 +704,6 @@ export function createTimeline(ctx) {
     setPeaks(id, P) { if (P && P.data) peaks.set(id, P); else peaks.delete(id); waveCache.delete(id); draw(); },
     setRowsChanged() { relayout(); },
     rows: () => rows.map(r => ({ id: r.id, label: r.label, h: r.h, y: r.y, collapsed: r.collapsed })),
-    destroy() { ro.disconnect(); offView(); tip.remove(); },
+    destroy() { ro.disconnect(); offView(); offTheme(); tip.remove(); },
   };
 }

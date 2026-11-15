@@ -20,6 +20,7 @@ import { createTransport, createShuttle } from './review/transport.js';
 import { createApplyQueue } from './review/applyqueue.js';
 import { createLibrary } from './review/library.js';
 import { installTips } from './review/tips.js';
+import { vhColor, onThemeChange } from './c0-theme.js';
 
 const ICON = {
   cursor: '<path d="M5 3l13 7.5-5.5 1.5-2.5 5.5z"/>',
@@ -588,6 +589,7 @@ export async function reviewPage(page, id, relArg = '') {
   let labelHits = [];   // note labels on the frame, in 0..1 coords, so a click can open the note
   const nextId = () => notes.reduce((m, n) => Math.max(m, n.id), 0) + 1;
   const numbered = (shapes, num) => shapes.map(s => s.type === 'pin' ? { ...s, num } : s);
+  onThemeChange(() => redraw());
   function redraw() {
     const W = ov.width, H = ov.height; octx.clearRect(0, 0, W, H);
     const t = noteTime(); labelHits = [];
@@ -602,7 +604,7 @@ export async function reviewPage(page, id, relArg = '') {
       const lh = Math.max(22, W * 0.02), onlyPin = sh.length && sh.every(x => x.type === 'pin'), pr = pinR(W);
       // a point note: label beside the marker head; anything else: above the drawing
       const x = Math.min(W - tw - 20, b[0] * W + (onlyPin ? pr * 1.4 : 0)), y = Math.max(4, onlyPin ? b[1] * H - pr * PIN_HEAD - lh / 2 : b[1] * H - 30);
-      octx.fillStyle = 'rgba(0,0,0,.72)'; octx.fillRect(x, y, tw + 14, lh); octx.fillStyle = '#fff'; octx.textBaseline = 'top'; octx.fillText(txt, x + 7, y + 4);
+      octx.fillStyle = vhColor('bg', .72); octx.fillRect(x, y, tw + 14, lh); octx.fillStyle = vhColor('text'); octx.textBaseline = 'top'; octx.fillText(txt, x + 7, y + 4);
       if (near) labelHits.push({ n, x0: x / W, y0: y / H, x1: (x + tw + 14) / W, y1: (y + lh) / H });
     }
     if (S.draft && S.frame === S.draft.frame) paint(octx, numbered(S.draft.shapes, nextId()), W, H);

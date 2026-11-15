@@ -2,6 +2,7 @@
 // The user moves the camera, an object or a screen item right in the picture, or moves a cut; the change is saved to
 // the scene's tweaks.json at once and every later preview and render draws it. No code change, no Claude, no tokens.
 import { h, api, toast, confirmBox } from '../app.js';
+import { vhColor, onThemeChange } from '../c0-theme.js';
 
 const STEPS = [0.01, 0.1, 1];
 const TC = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(2).padStart(5, '0')}`; };
@@ -19,6 +20,7 @@ export function createSceneEditor({ src, projectId, frame, panelHost, onOpen, on
   const ov = h('div', { class: 'sedit-ov' }, cv);
   const panel = h('div', { class: 'sedit-panel' });
   const fps = () => src.info?.fps || 60;
+  const offTheme = onThemeChange(() => { if (open) draw(); });
   // what this page can do (older pages: overlays only when they report them)
   const caps = () => { try { return E.caps ? E.caps() : { overlays: !!E.overlays, cuts: !!E.findCut }; } catch { return {}; } };
 
@@ -188,7 +190,7 @@ export function createSceneEditor({ src, projectId, frame, panelHost, onOpen, on
       const sx = cv.width / 1920, sy = cv.height / 1080;
       for (const it of items) {
         const on = it.id === osel;
-        g.strokeStyle = on ? '#ffb547' : 'rgba(126,231,135,.75)'; g.lineWidth = on ? 2 : 1; g.setLineDash(on ? [6, 4] : [3, 3]);
+        g.strokeStyle = on ? vhColor('yellow') : vhColor('green', .75); g.lineWidth = on ? 2 : 1; g.setLineDash(on ? [6, 4] : [3, 3]);
         g.strokeRect(it.box[0] * sx - 2, it.box[1] * sy - 2, (it.box[2] - it.box[0]) * sx + 4, (it.box[3] - it.box[1]) * sy + 4);
       }
       return;
@@ -197,7 +199,7 @@ export function createSceneEditor({ src, projectId, frame, panelHost, onOpen, on
     const info = E.info(sel.path); if (!info?.rect) return;
     sel.size = info.size;
     const [x0, y0, x1, y1] = info.rect, X = (x) => (x + 1) / 2 * cv.width, Y = (y) => (1 - y) / 2 * cv.height;
-    g.strokeStyle = '#ffb547'; g.lineWidth = 2; g.setLineDash([6, 4]);
+    g.strokeStyle = vhColor('yellow'); g.lineWidth = 2; g.setLineDash([6, 4]);
     g.strokeRect(X(x0), Y(y1), X(x1) - X(x0), Y(y0) - Y(y1));
   }
 
@@ -408,5 +410,5 @@ export function createSceneEditor({ src, projectId, frame, panelHost, onOpen, on
   }
   src.addEventListener('loadedmetadata', check);
   src.addEventListener('seeked', onSeek);
-  return { el: btn, check, close, isOpen: () => open, undo: () => (open && E ? back(true) : false), syncSound, destroy() { close(true); src.removeEventListener('loadedmetadata', check); src.removeEventListener('seeked', onSeek); } };
+  return { el: btn, check, close, isOpen: () => open, undo: () => (open && E ? back(true) : false), syncSound, destroy() { close(true); offTheme(); src.removeEventListener('loadedmetadata', check); src.removeEventListener('seeked', onSeek); } };
 }

@@ -4,13 +4,14 @@ import { agentName } from '../agent.js';
 // a mesh, characters sunk into things and 2D labels without depth; every other live page gets the picture checks
 // (black / white frames, flicker, one-frame pops, frozen picture, long holds, hard cuts). Same rules as engine/qa.mjs.
 import { h, api, toast } from '../app.js';
+import { vhColor, onThemeChange } from '../c0-theme.js';
 
 const KIND = {
-  lens: ['Camera inside an object', '#ff6b6b'], bones: ['Character embedded / underground', '#ff6b6b'],
-  overlay: ['Text in front of 3D objects', '#ffb547'], acting: ['Character in default pose', '#ffb547'],
-  flicker: ['Flicker', '#ffb547'], pop: ['One-frame pop', '#ffb547'],
-  frozen: ['Frozen image', '#58a6ff'], hold: ['Still for 1.6 s+', '#58a6ff'],
-  white: ['White / overexposed frame', '#d2a8ff'], black: ['Black frame', '#d2a8ff'], cut: ['Hard cut', '#8b949e'],
+  lens: ['Camera inside an object', 'red'], bones: ['Character embedded / underground', 'red'],
+  overlay: ['Text in front of 3D objects', 'yellow'], acting: ['Character in default pose', 'yellow'],
+  flicker: ['Flicker', 'yellow'], pop: ['One-frame pop', 'yellow'],
+  frozen: ['Frozen image', 'blue'], hold: ['Still for 1.6 s+', 'blue'],
+  white: ['White / overexposed frame', 'violet'], black: ['Black frame', 'violet'], cut: ['Hard cut', 'muted'],
 };
 const TC = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(2).padStart(5, '0')}`; };
 const N = 160 * 90;
@@ -145,6 +146,7 @@ export function createAutoScan({ src, projectId, frame, panelHost, onOpen, onClo
   }
   const b = (label, title, fn, cls) => h('button', { class: cls || '', title, onclick: (e) => { e.stopPropagation(); fn(); } }, label);
   let showCuts = false;
+  const offTheme = onThemeChange(() => paint());
   function paint() {
     if (!shown) return;
     panel.innerHTML = '';
@@ -166,17 +168,17 @@ export function createAutoScan({ src, projectId, frame, panelHost, onOpen, onClo
     // a strip of the whole film with a tick per range
     const strip = h('canvas', { class: 'ascan-strip', width: 600, height: 26, title: 'Click to jump to that time' });
     const D = dur() || 1, g = strip.getContext('2d');
-    g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, 0, 600, 26);
-    g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(report.a / D * 600, 0, Math.max(2, (report.b - report.a) / D * 600), 26);
-    for (const r of list) { g.fillStyle = KIND[r.kind][1]; g.fillRect(r.t0 / D * 600 - 1, 3, Math.max(2, (r.t1 - r.t0) / D * 600 + 2), 20); }
-    g.fillStyle = '#fff'; g.fillRect(src.currentTime / D * 600 - 1, 0, 2, 26);
+    g.fillStyle = vhColor('text', .06); g.fillRect(0, 0, 600, 26);
+    g.fillStyle = vhColor('text', .12); g.fillRect(report.a / D * 600, 0, Math.max(2, (report.b - report.a) / D * 600), 26);
+    for (const r of list) { g.fillStyle = vhColor(KIND[r.kind][1]); g.fillRect(r.t0 / D * 600 - 1, 3, Math.max(2, (r.t1 - r.t0) / D * 600 + 2), 20); }
+    g.fillStyle = vhColor('text'); g.fillRect(src.currentTime / D * 600 - 1, 0, 2, 26);
     strip.onclick = (e) => { const rc = strip.getBoundingClientRect(); src.currentTime = (e.clientX - rc.left) / rc.width * D; setTimeout(paint, 200); };
     panel.append(strip);
     if (!list.length) { panel.append(h('div', { class: 'ascan-ok' }, '✓ No issues found in this range.')); return; }
     panel.append(h('div', { class: 'ascan-list' }, list.map((r) => {
       const i = report.ranges.indexOf(r);
       return h('div', { class: 'ascan-item', onclick: () => { src.currentTime = r.t0 + 0.5 / fps(); } },
-        h('span', { class: 'ascan-dot', style: { background: KIND[r.kind][1] } }),
+        h('span', { class: 'ascan-dot', style: { background: `var(--${KIND[r.kind][1]})` } }),
         h('div', { class: 'ascan-txt' },
           h('div', {}, h('b', {}, KIND[r.kind][0]), h('span', { class: 'dim' }, ` · ${TC(r.t0)}${r.t1 > r.t0 ? '–' + TC(r.t1) : ''}${r.shot ? ' · ' + r.shot : ''}${r.n > 1 ? ' · ×' + r.n : ''}`)),
           h('div', { class: 'dim mono ascan-info', title: r.infos.join('\n') }, r.infos.join(' | '))),
@@ -185,5 +187,5 @@ export function createAutoScan({ src, projectId, frame, panelHost, onOpen, onClo
   }
 
   src.addEventListener('loadedmetadata', check);
-  return { el: btn, check, destroy() { stop = true; panel.remove(); src.removeEventListener('loadedmetadata', check); } };
+  return { el: btn, check, destroy() { stop = true; offTheme(); panel.remove(); src.removeEventListener('loadedmetadata', check); } };
 }
