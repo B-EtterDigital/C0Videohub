@@ -11,6 +11,7 @@ import { vhDir } from './notes.js';
 import { recipe } from './jobs.js';
 import { sourceRevision, invalidateSource, watchSource } from './source-revision.js';
 import { isHyperFrames, hyperframesInfo, withAdapter } from './c0-hyperframes.js';
+import { hyperframesSound } from './c0-hyperframes-audio.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -118,16 +119,18 @@ export async function liveInfo(p) {
   if (!hasHook(p, page)) return { ok: false, page, reason: `"${page}" does not define window.renderOut(t); the live preview needs that hook (see docs/PROJECT-CONTRACT.md).` };
   const js = read(path.join(p.path, rc.script || 'render.js'));
   const fpsM = js.match(/\bFPS\s*=\s*(\d+)/);
-  const hf = hyperframesInfo(read(path.join(p.path, page)), path.join(p.path, path.dirname(page)));   // C0VIBE: HyperFrames drafts
+  const pageHtml = read(path.join(p.path, page));
+  const hf = hyperframesInfo(pageHtml, path.join(p.path, path.dirname(page)));   // C0VIBE: HyperFrames drafts
   const fps = +(meta.live?.fps || hf?.fps || (rc.fps !== 60 ? rc.fps : null) || (fpsM ? fpsM[1] : 0) || 60);
-  const audio = audioOf(p, meta);
+  const hfSound = hf && !meta.live?.audio ? hyperframesSound(p, page, pageHtml) : null;   // C0VIBE: the draft's own clips, mixed
+  const audio = hfSound ? hfSound.path : audioOf(p, meta);
   let dur = +(meta.live?.dur || hf?.dur || rc.env?.DUR || 0), durFrom = dur ? (hf?.dur && !meta.live?.dur ? 'page' : 'saved') : null;
   if (!dur && audio) { try { dur = (await probe(audio)).dur || 0; durFrom = 'audio'; } catch { } }
   if (!dur) { const last = (p.outputs || []).filter(o => o.dur).sort((a, b) => b.mtime - a.mtime)[0]; if (last) { dur = last.dur; durFrom = 'last video'; } }
   if (!dur) { dur = 60; durFrom = 'default'; }
   const { w, h } = hf?.w && hf?.h ? hf : sizeOf(p, rc, page);
   return { ok: true, revision: codeRevision(p, { fresh: true }), page, url: `/live/${p.id}/${page.split('/').map(encodeURIComponent).join('/')}`, fps, dur: +(+dur).toFixed(3), durFrom, w, h,
-    audio: audio ? '/media?p=' + encodeURIComponent(audio) : null, audioPath: audio, audioName: audio ? path.relative(p.path, audio) : null, chunkSec: rc.chunkSec || null };
+    audio: audio ? '/media?p=' + encodeURIComponent(audio) : null, audioPath: audio, audioName: hfSound ? hfSound.names : audio ? path.relative(p.path, audio) : null, chunkSec: rc.chunkSec || null };
 }
 
 // GET /live/<id>/<file>: the project's own files, never cached (a reload must pick up Claude's edits)

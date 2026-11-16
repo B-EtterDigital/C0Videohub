@@ -10,7 +10,7 @@ export function createLiveSource(info, { onStatus } = {}) {
   let displayedTime = 0, destroyed = false, loadVersion = 0, seekVersion = 0, seekTimer = 0, playTimer = 0;
   let wantPlay = false;   // play asked for while the page was loading: start once it is ready
   let base = { t: 0, at: 0 }, raf = 0, need = false, rvfc = [], frames = 0, fpsAt = performance.now(), drawMs = 0, scale = 1;
-  const audio = info.audio ? h('audio', { src: info.audio, preload: 'auto' }) : null;
+  let audio = info.audio ? h('audio', { src: info.audio, preload: 'auto' }) : null;
   const src = new EventTarget();
   const fire = type => src.dispatchEvent(new Event(type));
   const status = s => onStatus && onStatus(s);
@@ -203,6 +203,13 @@ export function createLiveSource(info, { onStatus } = {}) {
       audio.src = info.audio + (info.audio.includes('?') ? '&' : '?') + 'v=' + Date.now();
       const sync = () => { try { audio.currentTime = src.currentTime; audio.playbackRate = rate; } catch { } if (!paused && !destroyed) audio.play().catch(() => { }); };
       audio.addEventListener('loadedmetadata', sync, { once: true }); sync();
+    },
+    // C0VIBE: a HyperFrames draft's sound was mixed after this page opened: the audio element is made now, from the same moment
+    setAudio(url) {
+      if (destroyed || !url) return;
+      info.audio = url;
+      if (!audio) audio = h('audio', { preload: 'auto' });
+      src.reloadAudio();
     },
     // the hub saw the code change: reload the page and come back to the same moment
     reload(nextInfo) {

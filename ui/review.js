@@ -893,6 +893,8 @@ export async function reviewPage(page, id, relArg = '') {
   const offLive = onHubEvent('live-changed', ev => { if (liveSrc && ev?.project === id) { api('/api/project/' + id + '/live').then(fresh => {
         if (fresh.ok) liveSrc.reload(fresh);
       }).catch(e => toast('Could not reload code: ' + e.message, true)); toast('Code changed, preview reloaded' + (ev.files?.length ? ': ' + ev.files.slice(0, 3).join(', ') : '')); } });
+  // C0VIBE: a HyperFrames draft's sound was mixed in the background: fetch the page's audio and play it from here on (and its waveform)
+  const offLiveAudio = onHubEvent('live-audio', ev => { if (liveSrc && ev?.project === id) api('/api/project/' + id + '/live').then(fresh => { if (fresh.ok && fresh.audio) { liveSrc.setAudio(fresh.audio); if (fresh.audioPath) loadWave('mix', fresh.audioPath); } }).catch(() => { }); });
   const offProxy = onHubEvent('proxy', ev => {
     if (!ev || ev.key !== proxyKey) return;
     if (ev.state === 'ready') api('/api/media/proxy?p=' + encodeURIComponent(cur.path)).then(st => { if (st.state === 'ready') { proxyUrl = st.url; useSource(st.url, true); } });
@@ -1088,7 +1090,7 @@ export async function reviewPage(page, id, relArg = '') {
     shuttle.stop({ pause: false }); transport.destroy();
     ro2.disconnect(); cancelAnimationFrame(clampRaf); topFit.destroy(); dockSplit.destroy(); sideSplit.destroy(); styleMenu?.close(); side.destroy();
     appEl?.classList.remove('app-editor', 'side-peek'); mainEl?.classList.remove('main-editor');
-    offTips(); offTheme(); ro.disconnect(); timeline.destroy(); clearInterval(diffTimer); offProxy(); offLive(); offNote(); renderBtn?.destroy(); sceneEd?.destroy(); scanner?.destroy(); mixer?.destroy(); mixer = null; soundEd?.destroy(); soundEd = null; edit2d?.destroy(); liveCover?.destroy(); liveSrc?.destroy();
+    offTips(); offTheme(); ro.disconnect(); timeline.destroy(); clearInterval(diffTimer); offProxy(); offLive(); offLiveAudio(); offNote(); renderBtn?.destroy(); sceneEd?.destroy(); scanner?.destroy(); mixer?.destroy(); mixer = null; soundEd?.destroy(); soundEd = null; edit2d?.destroy(); liveCover?.destroy(); liveSrc?.destroy();
     videoA.pause(); videoA.removeAttribute('src'); videoA.load(); videoB.pause(); videoB.removeAttribute('src'); videoB.load();
     page.classList.remove('page-wide', 'page-editor');
   };

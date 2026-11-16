@@ -17,6 +17,7 @@ import * as notesApi from './notes.js';
 import * as jobs from './jobs.js';
 import * as media from './media.js';
 import * as live from './live.js';
+import { HF_MIX_DIR, onMixReady } from './c0-hyperframes-audio.js';
 import { refreshSources } from './source-revision.js';
 import * as sound from './sound.js';
 import * as outputsApi from './outputs.js';
@@ -73,7 +74,7 @@ const readBody = req => new Promise((resolve, reject) => { const bufs = []; let 
 // files we are willing to serve: inside a root, the archive, or a project's .videohub folder
 function allowedFile(p) {
   const ts = config().thumbstudio || {};
-  const roots = config().roots.map(r => r.path).concat([config().archiveDir, media.PROXY, ts.globalDir, ts.templatesDir, ts.styleRefsDir].filter(Boolean));
+  const roots = config().roots.map(r => r.path).concat([config().archiveDir, media.PROXY, HF_MIX_DIR, ts.globalDir, ts.templatesDir, ts.styleRefsDir].filter(Boolean));
   return roots.some(r => isInside(p, r));
 }
 function serveFile(req, res, file) {
@@ -322,6 +323,7 @@ soundEdit.routes(route, readBody);
 jobs.routes(route, readBody);
 media.routes(route, allowedFile);
 media.onProxy(ev => broadcast('proxy', ev));
+onMixReady(ev => broadcast('live-audio', ev));   // C0VIBE: a HyperFrames draft's sound is ready (ui/review.js)
 notesApi.onNote(ev => broadcast('note', ev));
 thumbstudio.onStore(ev => broadcast('thumbstudio', ev));
 setTimeout(() => { try { notesApi.resumePending(index().projects); } catch (e) { console.error('[notes] resume:', e.message); } }, 8000);
